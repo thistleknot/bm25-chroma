@@ -30,7 +30,8 @@ documents = [
     "Deep learning uses neural networks for complex tasks."
 ]
 
-# Content-based IDs via hashlib - avoids order dependency, enables reliable lookup
+# Content-based surrogate keys via hashlib - avoids order dependency
+# Alternatively use natural keys when available
 doc_ids = [hashlib.sha256(doc.encode()).hexdigest() for doc in documents]
 
 # Add documents

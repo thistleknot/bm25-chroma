@@ -36,7 +36,7 @@ class HybridRetriever:
                  chroma_path: str, 
                  collection_name: str,
                  embedding_function=None,
-                 bm25_state_path: str = "optimized_bm25.pkl"):
+                 bm25_state_path: str = "bm25.pkl"):
         
         # Initialize Chroma
         self.chroma_client = chromadb.PersistentClient(path=chroma_path)
@@ -64,16 +64,16 @@ class HybridRetriever:
         
         # Load existing state if available
         self._load_state()
-    
+        
     def _load_state(self):
-        """Load BM25 state from disk"""
         try:
             with open(self.bm25_state_path, 'rb') as f:
                 state = pickle.load(f)
                 self.bm25 = state['bm25']
                 self.chunk_cache = state['chunk_cache']
                 print(f"Loaded BM25 state: {self.bm25.chunk_count} chunks")
-        except FileNotFoundError:
+        except (FileNotFoundError, AttributeError):
+            # AttributeError handles old class name incompatibility
             print("Starting with fresh BM25 index")
     
     def _save_state(self):

@@ -9,6 +9,7 @@ A fast, memory-efficient hybrid search system combining BM25 and vector search w
 - **Hybrid Fusion**: Industry-standard Reciprocal Rank Fusion (RRF)
 - **Dual Processing Modes**: Sequential or unified batch processing
 - **State Persistence**: Automatic save/load of BM25 index
+- **Document Management**: Add, remove, and update documents (chunks) with inverted index consistency
 
 ## Quick Start
 
@@ -30,6 +31,7 @@ documents = [
 
 retriever.add_documents_batch(
     documents,
+    doc_ids=["doc1", "doc2", "doc3"],  # Optional: auto-generated if not provided
     mode="unified",  # or "sequential"
     show_progress=True
 )
@@ -38,12 +40,96 @@ retriever.add_documents_batch(
 results = retriever.hybrid_search("machine learning", top_k=5)
 for doc_id, score, metadata in results:
     print(f"{doc_id}: {score:.3f} - {metadata['text'][:100]}...")
+
+# Document management
+retriever.remove_document("doc1")  # Remove single document
+retriever.remove_documents_batch(["doc2", "doc3"])  # Batch removal
+
+# Add new documents
+new_docs = ["Quantum computing leverages quantum mechanics."]
+retriever.add_documents_batch(new_docs, doc_ids=["quantum_doc"])
 ```
 
 ## Installation
 
 ```bash
 pip install bm25-chroma
+```
+
+## Core Architecture
+
+The BM25 component maintains an inverted index with the following structure:
+
+**Data Structure:**
+- **Vocabulary Set**: `set(words)` containing all unique terms
+- **Inverted Index**: `dict[word] = [(frequency, document_id), ...]`
+- **Posting Lists**: Tuples ordered by frequency in descending order
+
+**Inverted Index Consistency:**
+```python
+# Example inverted index structure
+{
+    "machine": [(3, doc_1), (2, doc_5), (1, doc_3)],  # frequency descending
+    "learning": [(2, doc_1), (2, doc_2), (1, doc_4)],
+    "data": [(1, doc_1), (1, doc_3)]
+}
+```
+
+When documents are added or removed:
+1. **Addition**: Terms added to vocabulary, posting lists updated and re-sorted
+2. **Removal**: Orphaned terms removed from vocabulary, posting lists cleaned
+3. **Consistency**: Document statistics and averages recalculated incrementally
+
+## Document Management
+
+### Adding Documents
+
+```python
+# Single batch with auto-generated IDs
+retriever.add_documents_batch(documents, mode="unified")
+
+# Single batch with custom IDs
+retriever.add_documents_batch(
+    documents, 
+    doc_ids=["custom_1", "custom_2", "custom_3"],
+    mode="unified"
+)
+
+# Multiple batches for large datasets
+for batch in document_batches:
+    retriever.add_documents_batch(batch, mode="unified", show_progress=True)
+```
+
+### Removing Documents
+
+```python
+# Remove single document
+retriever.remove_document("doc_id_1")
+
+# Batch removal (efficient for multiple documents)
+retriever.remove_documents_batch(["doc_1", "doc_2", "doc_3"])
+
+# Check system state after removal
+stats = retriever.get_system_stats()
+print(f"Documents remaining: {stats['chunks']}")
+```
+
+### Search Methods
+
+```python
+# BM25 only (keyword-based)
+bm25_results = retriever.search_bm25("machine learning", top_k=10)
+
+# Vector only (semantic similarity)
+vector_results = retriever.search_vector("artificial intelligence", top_k=10)
+
+# Hybrid search with RRF fusion (recommended)
+hybrid_results = retriever.hybrid_search(
+    "deep learning neural networks",
+    top_k=10,
+    use_rrf=True,
+    rrf_k=60
+)
 ```
 
 ## Testing
@@ -59,10 +145,17 @@ Or run directly:
 python tests/test_examples.py
 ```
 
+**Test Coverage:**
+- Inverted index consistency validation
+- Document addition/removal workflows  
+- Cross-document term tracking
+- Posting list ordering verification
+- Vocabulary cleanup on document removal
+
 ## Examples
 
-- `examples/basic_usage.py` - Simple example with custom documents
-- `examples/brown_corpus_demo.py` - Full demo with Brown corpus
+- `examples/basic_usage.py` - Document management workflow with custom documents
+- `examples/brown_corpus_demo.py` - Brown corpus demo with add/remove operations
 
 ## Processing Modes
 
@@ -100,16 +193,23 @@ The system is designed for efficiency through incremental operations:
 
 ### Main Classes
 
-- `BM25`: Fast BM25 implementation
+- `BM25`: Fast BM25 implementation with inverted index
 - `HybridRetriever`: Main hybrid search interface
 
 ### Key Methods
 
+**Document Management:**
 - `add_documents_batch()`: Add documents in batches
+- `remove_document()`: Remove single document  
+- `remove_documents_batch()`: Remove multiple documents
+
+**Search Methods:**
 - `search_bm25()`: BM25-only search
 - `search_vector()`: Vector-only search  
 - `hybrid_search()`: Combined search with RRF
-- `get_system_stats()`: Performance statistics
+
+**System Methods:**
+- `get_system_stats()`: Performance statistics and document counts
 
 ## License
 

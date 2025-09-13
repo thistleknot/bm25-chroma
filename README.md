@@ -1,4 +1,4 @@
-# Enhanced Hybrid Retriever
+# BM-25 Chroma Hybrid Retriever
 
 A fast, memory-efficient hybrid search system combining optimized BM25 and vector search with Reciprocal Rank Fusion (RRF).
 

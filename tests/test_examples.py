@@ -39,8 +39,8 @@ def test_bm25_basic():
     # Add parent directory to path for direct imports
     sys.path.insert(0, str(Path(__file__).parent.parent))
     try:
-        # Use direct import instead of relative import
-        from bm25 import BM25
+        # Changed from: from bm25_chroma.bm25 import BM25
+        from bm25_chroma.bm25 import BM25
         bm25 = BM25()
         bm25.add_chunk("doc1", "machine learning algorithms")
         bm25.add_chunk("doc2", "natural language processing")
@@ -55,7 +55,8 @@ def test_hybrid_retriever_basic():
     """Test HybridRetriever basic functionality"""
     sys.path.insert(0, str(Path(__file__).parent.parent))
     try:
-        from hybrid_retriever import HybridRetriever as HybridRetriever
+        # Changed from: from hybrid_retriever import HybridRetriever
+        from bm25_chroma.hybrid_retriever import HybridRetriever
         import tempfile
         import shutil
         import time

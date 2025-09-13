@@ -9,7 +9,7 @@ import re
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from hybrid_retriever import HybridRetriever as HybridRetriever
+from bm25_chroma.hybrid_retriever import HybridRetriever
 
 # Download Brown corpus if needed
 nltk.download('brown', quiet=True)

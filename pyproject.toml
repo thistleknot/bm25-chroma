@@ -3,8 +3,8 @@ requires = ["setuptools>=45", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hybrid-retriever"
-version = "0.1.0"
+name = "bm25-chroma"
+version = "0.2.0"
 description = "A fast, memory-efficient hybrid search system combining BM25 and vector search"
 readme = "README.md"
 requires-python = ">=3.8"

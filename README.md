@@ -13,13 +13,10 @@ A fast, memory-efficient hybrid search system combining optimized BM25 and vecto
 ## Quick Start
 
 ```python
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from hybrid_retriever import HybridRetriever as HybridRetriever
+from hybrid_retriever import EnhancedHybridRetriever
 
 # Initialize
-retriever = HybridRetriever(
+retriever = EnhancedHybridRetriever(
     chroma_path="./my_db",
     collection_name="my_docs"
 )

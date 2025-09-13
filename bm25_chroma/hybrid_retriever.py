@@ -6,15 +6,7 @@ import chromadb
 from chromadb.utils import embedding_functions
 from tqdm import tqdm
 
-import pickle
-import time
-from collections import defaultdict
-from typing import List, Tuple, Dict, Set, Optional, Any
-import chromadb
-from chromadb.utils import embedding_functions
-from tqdm import tqdm
-
-from bm25 import BM25
+from bm25_chroma.bm25 import BM25
 
 
 

@@ -5,7 +5,10 @@ Simple example showing how to use the Enhanced Hybrid Retriever
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from hybrid_retriever import HybridRetriever as HybridRetriever
+
+from bm25_chroma.hybrid_retriever import HybridRetriever
+
+
 
 def main():
     # Initialize retriever

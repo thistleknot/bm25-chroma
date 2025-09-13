@@ -13,10 +13,13 @@ A fast, memory-efficient hybrid search system combining optimized BM25 and vecto
 ## Quick Start
 
 ```python
-from hybrid_retriever import EnhancedHybridRetriever
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from hybrid_retriever import HybridRetriever as HybridRetriever
 
 # Initialize
-retriever = EnhancedHybridRetriever(
+retriever = HybridRetriever(
     chroma_path="./my_db",
     collection_name="my_docs"
 )
@@ -46,6 +49,19 @@ for doc_id, score, metadata in results:
 pip install -r requirements.txt
 ```
 
+## Testing
+
+Run tests to verify functionality:
+
+```bash
+pytest tests/
+```
+
+Or run directly:
+```bash
+python tests/test_examples.py
+```
+
 ## Examples
 
 - `examples/basic_usage.py` - Simple example with custom documents
@@ -65,11 +81,23 @@ pip install -r requirements.txt
 
 ## Performance
 
-Optimized for speed and memory efficiency:
-- Integer indices instead of string IDs
-- Pre-sorted postings for early termination
-- Configurable batch sizes
-- Automatic state persistence
+The system is designed for efficiency through incremental operations:
+
+**No Full Recalculation**: Adding or removing documents updates only affected components:
+- Vocabulary set adds/removes only new/orphaned terms
+- Inverted index updates only posting lists for changed terms  
+- Document statistics incrementally adjust averages and counts
+
+**Python Native Libraries**: Heavy lifting handled by optimized built-ins:
+- `Counter.most_common()` provides pre-sorted frequency lists
+- `heapq.merge()` efficiently combines sorted posting lists
+- `set` operations for O(1) vocabulary lookups and updates
+- `defaultdict(Counter)` for sparse term-document matrices
+
+**Batch Processing**: Configurable batch sizes balance memory usage and processing speed:
+- Pending additions buffer reduces index update frequency
+- Automatic flush mechanism maintains data consistency
+- Progress tracking for large document collections
 
 ## API
 

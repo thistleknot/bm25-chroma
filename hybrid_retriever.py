@@ -6,7 +6,16 @@ import chromadb
 from chromadb.utils import embedding_functions
 from tqdm import tqdm
 
-from bm25 import OptimizedBM25
+import pickle
+import time
+from collections import defaultdict
+from typing import List, Tuple, Dict, Set, Optional, Any
+import chromadb
+from chromadb.utils import embedding_functions
+from tqdm import tqdm
+
+from bm25 import BM25
+
 
 
 def reciprocal_rank_fusion(results_list: List[List[Tuple[str, float]]], 
@@ -22,7 +31,7 @@ def reciprocal_rank_fusion(results_list: List[List[Tuple[str, float]]],
     return sorted_docs[:top_k]
 
 
-class EnhancedHybridRetriever:
+class HybridRetriever:
     """
     Hybrid ensemble combining optimized BM25 + Chroma vector search with RRF
     
@@ -71,9 +80,9 @@ class EnhancedHybridRetriever:
                 state = pickle.load(f)
                 self.bm25 = state['bm25']
                 self.chunk_cache = state['chunk_cache']
-                print(f"✅ Loaded BM25 state: {self.bm25.chunk_count} chunks")
+                print(f"Loaded BM25 state: {self.bm25.chunk_count} chunks")
         except FileNotFoundError:
-            print("🚀 Starting with fresh BM25 index")
+            print("Starting with fresh BM25 index")
     
     def _save_state(self):
         """Save BM25 state to disk"""
@@ -105,7 +114,7 @@ class EnhancedHybridRetriever:
         if len(documents) != len(doc_ids):
             raise ValueError("Documents and doc_ids must have same length")
         
-        print(f"🚀 Processing {len(documents)} documents in {mode} mode")
+        print(f"Processing {len(documents)} documents in {mode} mode")
         start_time = time.time()
         
         if mode == "sequential":
@@ -121,14 +130,14 @@ class EnhancedHybridRetriever:
         stats['total_time_seconds'] = total_time
         stats['docs_per_second'] = len(documents) / total_time
         
-        print(f"✅ Completed in {total_time:.2f}s ({stats['docs_per_second']:.1f} docs/sec)")
+        print(f"Completed in {total_time:.2f}s ({stats['docs_per_second']:.1f} docs/sec)")
         return stats
     
     def _process_sequential(self, documents, doc_ids, chroma_batch_size, bm25_batch_size, show_progress):
         """Mode 1: Sequential processing - Chroma first, then BM25"""
         
         # Phase 1: Add all to Chroma in batches
-        print("📊 Phase 1: Adding to Chroma...")
+        print("Phase 1: Adding to Chroma...")
         chroma_start = time.time()
         
         if show_progress:
@@ -148,13 +157,13 @@ class EnhancedHybridRetriever:
                     metadatas=batch_metadatas
                 )
             except Exception as e:
-                print(f"⚠️ Chroma batch error at index {i}: {e}")
+                print(f"Chroma batch error at index {i}: {e}")
                 continue
         
         chroma_time = time.time() - chroma_start
         
         # Phase 2: Add all to BM25 in batches  
-        print("🔍 Phase 2: Adding to BM25...")
+        print("Phase 2: Adding to BM25...")
         bm25_start = time.time()
         
         if show_progress:
@@ -188,7 +197,7 @@ class EnhancedHybridRetriever:
     def _process_unified(self, documents, doc_ids, batch_size, show_progress):
         """Mode 2: Unified processing - Both systems together"""
         
-        print("🔄 Unified processing: Both systems together...")
+        print("Unified processing: Both systems together...")
         
         if show_progress:
             pbar = tqdm(range(0, len(documents), batch_size), desc="Unified batches")
@@ -213,7 +222,7 @@ class EnhancedHybridRetriever:
             except Exception as e:
                 chroma_errors += 1
                 if chroma_errors <= 3:
-                    print(f"⚠️ Chroma error in batch {i//batch_size}: {e}")
+                    print(f"Chroma error in batch {i//batch_size}: {e}")
             
             # Add to BM25
             try:
@@ -227,7 +236,7 @@ class EnhancedHybridRetriever:
             except Exception as e:
                 bm25_errors += 1
                 if bm25_errors <= 3:
-                    print(f"⚠️ BM25 error in batch {i//batch_size}: {e}")
+                    print(f"BM25 error in batch {i//batch_size}: {e}")
         
         return {
             'mode': 'unified',
@@ -263,7 +272,7 @@ class EnhancedHybridRetriever:
             return vector_results
             
         except Exception as e:
-            print(f"⚠️ Vector search error: {e}")
+            print(f"Vector search error: {e}")
             return []
     
     def hybrid_search(self, 
@@ -305,8 +314,9 @@ class EnhancedHybridRetriever:
     def get_system_stats(self) -> Dict:
         """Complete system statistics"""
         bm25_stats = self.bm25.get_stats()
-        chroma_count = len(self.chroma_collection.get(include=["ids"])["ids"])
-        
+        # Fix: Use "metadatas" instead of "ids" since "ids" is no longer supported
+        chroma_results = self.chroma_collection.get(include=["metadatas"])
+        chroma_count = len(chroma_results["ids"])  # IDs are always returned by get()
         return {
             **bm25_stats,
             'chroma_chunks': chroma_count,

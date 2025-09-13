@@ -2,7 +2,10 @@
 Simple example showing how to use the Enhanced Hybrid Retriever
 """
 
-from hybrid_retriever import EnhancedHybridRetriever
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from hybrid_retriever import HybridRetriever as HybridRetriever
 
 def main():
     # Initialize retriever
@@ -32,7 +35,7 @@ def main():
     
     # Test search
     query = "machine learning data analysis"
-    print(f"\n🔍 Searching for: '{query}'")
+    print(f"\nSearching for: '{query}'")
     
     # Hybrid search
     results = retriever.hybrid_search(query, top_k=3)

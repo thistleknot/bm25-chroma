@@ -5,7 +5,7 @@ from collections import defaultdict, Counter
 from typing import List, Tuple, Dict, Set
 
 
-class OptimizedBM25:
+class BM25:
     """
     Memory-efficient BM25 implementation with integer indices and pre-sorted postings.
     
@@ -91,7 +91,7 @@ class OptimizedBM25:
             if term not in self.inverted_index:
                 self.inverted_index[term] = []
             
-            # 🚀 Counter.most_common() gives us PRE-SORTED results!
+            # Counter.most_common() gives us PRE-SORTED results!
             new_postings = [(freq, chunk_idx) for chunk_idx, freq in chunk_freq_counter.most_common()]
             
             # Merge with existing sorted postings

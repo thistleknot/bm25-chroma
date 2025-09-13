@@ -6,7 +6,10 @@ import nltk
 from nltk.corpus import brown
 from nltk.tokenize.treebank import TreebankWordDetokenizer
 import re
-from hybrid_retriever import EnhancedHybridRetriever
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from hybrid_retriever import HybridRetriever as HybridRetriever
 
 # Download Brown corpus if needed
 nltk.download('brown', quiet=True)
@@ -61,10 +64,10 @@ def get_brown_docs(num_docs=50):
 
 
 def main():
-    print("🚀 Brown Corpus Hybrid Retriever Demo")
+    print("Brown Corpus Hybrid Retriever Demo")
     
     # Get Brown corpus documents
-    print("📚 Loading Brown corpus...")
+    print("Loading Brown corpus...")
     brown_docs = get_brown_docs(50)
     print(f"Loaded {len(brown_docs)} documents")
     
@@ -103,7 +106,7 @@ def main():
     ]
     
     for query in test_queries:
-        print(f"\n🔍 Query: '{query}'")
+        print(f"\nQuery: '{query}'")
         
         # BM25 search
         bm25_results = retriever.search_bm25(query, top_k=3)
@@ -135,7 +138,7 @@ def main():
     for key, value in stats.items():
         print(f"  {key}: {value}")
     
-    print(f"\n✅ Demo complete! Indexed {stats['chunks']} Brown corpus documents.")
+    print(f"\nDemo complete! Indexed {stats['chunks']} Brown corpus documents.")
 
 
 if __name__ == "__main__":

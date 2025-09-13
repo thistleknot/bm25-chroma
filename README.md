@@ -1,10 +1,10 @@
 # BM-25 Chroma Hybrid Retriever
 
-A fast, memory-efficient hybrid search system combining optimized BM25 and vector search with Reciprocal Rank Fusion (RRF).
+A fast, memory-efficient hybrid search system combining BM25 and vector search with Reciprocal Rank Fusion (RRF).
 
 ## Features
 
-- **Optimized BM25**: Memory-efficient with integer indices and pre-sorted postings
+- **BM25**: Memory-efficient with integer indices and pre-sorted postings
 - **Vector Search**: Semantic similarity using ChromaDB and sentence transformers  
 - **Hybrid Fusion**: Industry-standard Reciprocal Rank Fusion (RRF)
 - **Dual Processing Modes**: Sequential or unified batch processing
@@ -13,10 +13,10 @@ A fast, memory-efficient hybrid search system combining optimized BM25 and vecto
 ## Quick Start
 
 ```python
-from hybrid_retriever import EnhancedHybridRetriever
+from bm25_chroma import HybridRetriever, BM25
 
 # Initialize
-retriever = EnhancedHybridRetriever(
+retriever = HybridRetriever(
     chroma_path="./my_db",
     collection_name="my_docs"
 )
@@ -43,7 +43,7 @@ for doc_id, score, metadata in results:
 ## Installation
 
 ```bash
-pip install -r requirements.txt
+pip install bm25-chroma
 ```
 
 ## Testing

@@ -13,7 +13,7 @@ A fast, memory-efficient hybrid search system combining optimized BM25 and vecto
 ## Quick Start
 
 ```python
-from hybrid_retriever import EnhancedHybridRetriever
+from bm25_chroma import HybridRetriever, BM25
 
 # Initialize
 retriever = EnhancedHybridRetriever(

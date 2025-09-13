@@ -1,5 +1,5 @@
 """
-Complete Brown Corpus demo with mode comparison
+Brown Corpus demo with document management workflow
 """
 
 import nltk
@@ -14,7 +14,7 @@ from bm25_chroma.hybrid_retriever import HybridRetriever
 # Download Brown corpus if needed
 nltk.download('brown', quiet=True)
 
-def get_brown_docs(num_docs=50):
+def get_brown_docs(num_docs=30):
     """Extract clean document texts from Brown corpus"""
     fileids = brown.fileids()[:num_docs]
     docs = []
@@ -62,84 +62,118 @@ def get_brown_docs(num_docs=50):
     
     return docs[:num_docs]
 
-
 def main():
-    print("Brown Corpus Hybrid Retriever Demo")
+    print("Brown Corpus Hybrid Retriever Demo with Document Management")
     
     # Get Brown corpus documents
     print("Loading Brown corpus...")
-    brown_docs = get_brown_docs(50)
+    brown_docs = get_brown_docs(30)
     print(f"Loaded {len(brown_docs)} documents")
     
     # Initialize retriever
     retriever = HybridRetriever(
         chroma_path="./brown_db",
-        collection_name="brown_corpus"
+        collection_name="brown_corpus_management"
     )
     
-    # Test unified mode
-    print("\n" + "="*50)
-    print("TESTING UNIFIED MODE")
-    print("="*50)
+    # Add initial documents
+    print("\n" + "="*60)
+    print("ADDING INITIAL DOCUMENTS")
+    print("="*60)
     
-    unified_stats = retriever.add_documents_batch(
+    doc_ids = [f"brown_{i:04d}" for i in range(len(brown_docs))]
+    
+    stats = retriever.add_documents_batch(
         brown_docs,
-        doc_ids=[f"brown_{i:04d}" for i in range(len(brown_docs))],
+        doc_ids=doc_ids,
         mode="unified",
         chroma_batch_size=8,
         show_progress=True
     )
     
-    print(f"\nUnified Results:")
-    print(f"  Time: {unified_stats['total_time_seconds']:.2f}s")
-    print(f"  Speed: {unified_stats['docs_per_second']:.1f} docs/sec")
+    print(f"Added {stats['total_documents']} documents in {stats['total_time_seconds']:.2f}s")
     
-    # Test search functionality
-    print("\n" + "="*50)
-    print("TESTING SEARCH")
-    print("="*50)
+    # Show initial system stats
+    initial_stats = retriever.get_system_stats()
+    print(f"Initial document count: {initial_stats['chunks']}")
     
-    test_queries = [
-        "government politics",
-        "economic development", 
-        "social relationships"
+    # Test search before deletion
+    print("\n" + "="*60)
+    print("SEARCH BEFORE DOCUMENT MANAGEMENT")
+    print("="*60)
+    
+    query = "government political"
+    print(f"Searching for: '{query}'")
+    
+    initial_results = retriever.hybrid_search(query, top_k=5)
+    print("Initial search results:")
+    for i, (doc_id, score, metadata) in enumerate(initial_results, 1):
+        text = metadata.get('text', '')[:100]
+        print(f"  {i}. {doc_id}: {score:.3f} - {text}...")
+    
+    # Document management workflow
+    print("\n" + "="*60)
+    print("DOCUMENT MANAGEMENT WORKFLOW")
+    print("="*60)
+    
+    # Remove some documents
+    docs_to_remove = doc_ids[:5]  # Remove first 5 documents
+    print(f"Removing {len(docs_to_remove)} documents: {docs_to_remove}")
+    
+    retriever.remove_documents_batch(docs_to_remove)
+    
+    after_deletion_stats = retriever.get_system_stats()
+    print(f"Documents after deletion: {after_deletion_stats['chunks']} (was {initial_stats['chunks']})")
+    
+    # Add new documents
+    new_docs = [
+        "Artificial intelligence revolutionizes modern computing and data processing systems.",
+        "Machine learning algorithms enable computers to learn patterns from large datasets.",
+        "Natural language processing bridges the gap between human communication and computers."
     ]
+    new_doc_ids = ["ai_doc", "ml_doc", "nlp_doc"]
     
-    for query in test_queries:
-        print(f"\nQuery: '{query}'")
-        
-        # BM25 search
-        bm25_results = retriever.search_bm25(query, top_k=3)
-        print(f"  BM25 ({len(bm25_results)} results):")
-        for i, (doc_id, score) in enumerate(bm25_results[:3], 1):
-            text = retriever.chunk_cache.get(doc_id, "")[:80]
-            print(f"    {i}. {doc_id}: {score:.3f} - {text}...")
-        
-        # Vector search
-        vector_results = retriever.search_vector(query, top_k=3)
-        print(f"  Vector ({len(vector_results)} results):")
-        for i, (doc_id, score) in enumerate(vector_results[:3], 1):
-            text = retriever.chunk_cache.get(doc_id, "")[:80]
-            print(f"    {i}. {doc_id}: {score:.3f} - {text}...")
-        
-        # Hybrid search
-        hybrid_results = retriever.hybrid_search(query, top_k=3, use_rrf=True)
-        print(f"  Hybrid ({len(hybrid_results)} results):")
-        for i, (doc_id, score, metadata) in enumerate(hybrid_results[:3], 1):
-            text = metadata.get('text', '')[:80]
-            print(f"    {i}. {doc_id}: {score:.3f} - {text}...")
+    print(f"\nAdding {len(new_docs)} new technology-focused documents")
+    retriever.add_documents_batch(new_docs, doc_ids=new_doc_ids, show_progress=False)
     
-    # System statistics
-    print("\n" + "="*50)
-    print("FINAL STATS")
-    print("="*50)
+    final_stats = retriever.get_system_stats()
+    print(f"Final document count: {final_stats['chunks']}")
     
-    stats = retriever.get_system_stats()
-    for key, value in stats.items():
+    # Test search after changes
+    print("\n" + "="*60)
+    print("SEARCH AFTER DOCUMENT MANAGEMENT")  
+    print("="*60)
+    
+    # Search for AI-related content (should find new docs)
+    ai_query = "artificial intelligence machine learning"
+    print(f"Searching for: '{ai_query}' (should find new docs)")
+    
+    ai_results = retriever.hybrid_search(ai_query, top_k=5)
+    print("AI search results:")
+    for i, (doc_id, score, metadata) in enumerate(ai_results, 1):
+        text = metadata.get('text', '')[:100]
+        print(f"  {i}. {doc_id}: {score:.3f} - {text}...")
+    
+    # Search for original Brown corpus content
+    brown_query = "government political"
+    print(f"\nSearching for: '{brown_query}' (original Brown content)")
+    
+    brown_results = retriever.hybrid_search(brown_query, top_k=5)
+    print("Brown corpus search results:")
+    for i, (doc_id, score, metadata) in enumerate(brown_results, 1):
+        text = metadata.get('text', '')[:100]
+        print(f"  {i}. {doc_id}: {score:.3f} - {text}...")
+    
+    # Final statistics
+    print("\n" + "="*60)
+    print("FINAL SYSTEM STATISTICS")
+    print("="*60)
+    
+    for key, value in final_stats.items():
         print(f"  {key}: {value}")
     
-    print(f"\nDemo complete! Indexed {stats['chunks']} Brown corpus documents.")
-
+    print(f"\nDemo complete! Managed documents: -{len(docs_to_remove)} +{len(new_docs)}")
+    print(f"Net change: {final_stats['chunks'] - initial_stats['chunks']} documents")
 
 if __name__ == "__main__":
     main()

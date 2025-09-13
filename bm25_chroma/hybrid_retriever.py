@@ -315,3 +315,36 @@ class HybridRetriever:
             'cached_chunks': len(self.chunk_cache),
             'sync_status': 'synced' if bm25_stats['chunks'] == chroma_count else 'needs_sync'
         }
+        
+    def remove_document(self, doc_id: str):
+        """Remove document from both BM25 and Chroma"""
+        # Remove from BM25 (already implemented)
+        self.bm25.remove_chunk(doc_id)
+        
+        # Remove from Chroma
+        try:
+            self.chroma_collection.delete(ids=[doc_id])
+        except Exception as e:
+            print(f"Chroma deletion error: {e}")
+        
+        # Remove from cache
+        self.chunk_cache.pop(doc_id, None)
+        
+        # Save state
+        self._save_state()
+
+    def remove_documents_batch(self, doc_ids: List[str]):
+        """Remove multiple documents efficiently"""
+        # Remove from Chroma in batch
+        try:
+            self.chroma_collection.delete(ids=doc_ids)
+        except Exception as e:
+            print(f"Chroma batch deletion error: {e}")
+        
+        # Remove from BM25 individually (no batch method exists)
+        for doc_id in doc_ids:
+            self.bm25.remove_chunk(doc_id)
+            self.chunk_cache.pop(doc_id, None)
+        
+        # Save state
+        self._save_state()

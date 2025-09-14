@@ -8,20 +8,22 @@ from tqdm import tqdm
 
 from bm25_chroma.bm25 import BM25
 
-
-
 def reciprocal_rank_fusion(results_list: List[List[Tuple[str, float]]], 
+                          bm25_ratio: float = 0.5,
                           k: int = 60, top_k: int = 10) -> List[Tuple[str, float]]:
-    """Industry-standard RRF for combining multiple ranked lists"""
+    """Industry-standard RRF for combining multiple ranked lists with ratio weighting"""
     doc_rrf_scores = defaultdict(float)
     
-    for ranked_list in results_list:
+    # Calculate weights - assumes results_list[0] is BM25, results_list[1] is vector
+    weights = [bm25_ratio, 1.0 - bm25_ratio]
+    
+    for i, ranked_list in enumerate(results_list):
+        weight = weights[i] if i < len(weights) else 1.0
         for rank, (doc_id, _) in enumerate(ranked_list, start=1):
-            doc_rrf_scores[doc_id] += 1.0 / (k + rank)
+            doc_rrf_scores[doc_id] += weight * (1.0 / (k + rank))
     
     sorted_docs = sorted(doc_rrf_scores.items(), key=lambda x: x[1], reverse=True)
     return sorted_docs[:top_k]
-
 
 class HybridRetriever:
     """
@@ -270,6 +272,7 @@ class HybridRetriever:
     def hybrid_search(self, 
                      query: str, 
                      top_k: int = 10,
+                     bm25_ratio: float = 0.5,
                      use_rrf: bool = True,
                      rrf_k: int = 60) -> List[Tuple[str, float, Dict[str, Any]]]:
         """Hybrid ensemble search combining BM25 + Vector with RRF fusion"""
@@ -283,7 +286,7 @@ class HybridRetriever:
         
         # Combine results
         if use_rrf and bm25_results and vector_results:
-            fused_results = reciprocal_rank_fusion([bm25_results, vector_results], k=rrf_k, top_k=top_k)
+            fused_results = reciprocal_rank_fusion([bm25_results, vector_results], k=rrf_k, top_k=top_k, bm25_ratio=bm25_ratio)
         else:
             # Fallback: just use BM25 or vector results
             if bm25_results:

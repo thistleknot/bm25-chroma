@@ -72,9 +72,21 @@ def test_hybrid_retriever_basic():
             assert stats['total_documents'] == 2
             assert stats['docs_per_second'] > 0
             
-            results = retriever.hybrid_search("learning", top_k=2)
+            results = retriever.hybrid_search("learning", top_k=2, bm25_ratio=0.5)
             assert len(results) == 2
             
+            results = retriever.hybrid_search("learning", top_k=2, bm25_ratio=1)
+            assert len(results) == 2
+
+            results = retriever.hybrid_search("learning", top_k=2, bm25_ratio=0)
+            assert len(results) == 2
+
+            results = retriever.hybrid_search("learning", top_k=2, bm25_ratio=0.25)
+            assert len(results) == 2
+
+            results = retriever.hybrid_search("learning", top_k=2, bm25_ratio=0.75)
+            assert len(results) == 2
+
             # Verify IDs are consistent
             regenerated_ids = [hashlib.sha256(doc.encode()).hexdigest() for doc in docs]
             assert doc_ids == regenerated_ids, "Document IDs should be deterministic"

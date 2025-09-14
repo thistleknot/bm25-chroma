@@ -4,14 +4,51 @@ import heapq
 from collections import defaultdict, Counter
 from typing import List, Tuple, Dict, Set
 
+# Lemmatization with graceful fallback
+try:
+    import nltk
+    from nltk.stem import WordNetLemmatizer
+    from nltk.corpus import wordnet
+    
+    # Download required NLTK data if not present
+    try:
+        nltk.data.find('corpora/wordnet')
+        nltk.data.find('taggers/averaged_perceptron_tagger')
+    except LookupError:
+        nltk.download('wordnet', quiet=True)
+        nltk.download('averaged_perceptron_tagger', quiet=True)
+    
+    LEMMATIZER = WordNetLemmatizer()
+    LEMMATIZATION_AVAILABLE = True
+    
+    def get_wordnet_pos(treebank_tag):
+        """Convert treebank POS tag to WordNet POS tag"""
+        if treebank_tag.startswith('J'):
+            return wordnet.ADJ
+        elif treebank_tag.startswith('V'):
+            return wordnet.VERB
+        elif treebank_tag.startswith('N'):
+            return wordnet.NOUN
+        elif treebank_tag.startswith('R'):
+            return wordnet.ADV
+        else:
+            return wordnet.NOUN  # Default to noun
+            
+except ImportError:
+    LEMMATIZER = None
+    LEMMATIZATION_AVAILABLE = False
+    get_wordnet_pos = None
+
 
 class BM25:
     """
-    Memory-efficient BM25 implementation with integer indices and pre-sorted postings.
+    Memory-efficient BM25 implementation with enhanced text preprocessing.
     
     Features:
     - Integer chunk indices for memory efficiency
     - Pre-sorted posting lists for faster retrieval
+    - Intelligent tokenization with lemmatization support
+    - Preserves alphanumeric identifiers (part numbers, serial numbers)
     - Batch processing with configurable flush intervals
     - Automatic vocabulary management
     """
@@ -38,9 +75,60 @@ class BM25:
         self.avg_chunk_length = 0.0
     
     def _tokenize(self, text: str) -> List[str]:
-        """Fast tokenizer optimized for search"""
-        tokens = re.findall(r'\b[a-zA-Z0-9]+\b', text.lower())
-        return [t for t in tokens if 2 <= len(t) <= 50]
+        """
+        Enhanced tokenizer with lemmatization support.
+        
+        Features:
+        - Strips punctuation while preserving alphanumeric characters
+        - Converts to lowercase
+        - Lemmatizes words when NLTK is available
+        - Preserves part numbers, serial numbers, and other identifiers
+        """
+        if not isinstance(text, str):
+            return []
+        
+        # Extract alphanumeric tokens (preserves part numbers like "P123", "SN-456", etc.)
+        raw_tokens = re.findall(r'\b[a-zA-Z0-9]+\b', text.lower())
+        
+        # Filter by length
+        filtered_tokens = [t for t in raw_tokens if 2 <= len(t) <= 50]
+        
+        if not LEMMATIZATION_AVAILABLE:
+            return filtered_tokens
+        
+        # Lemmatization with POS tagging for better accuracy
+        try:
+            # Get POS tags for better lemmatization
+            pos_tags = nltk.pos_tag(filtered_tokens)
+            
+            lemmatized_tokens = []
+            for token, pos_tag in pos_tags:
+                # Convert to alphanumeric-only tokens (numbers pass through unchanged)
+                if token.isdigit() or any(char.isdigit() for char in token):
+                    # Preserve alphanumeric identifiers as-is
+                    lemmatized_tokens.append(token)
+                else:
+                    # Lemmatize alphabetic words
+                    wordnet_pos = get_wordnet_pos(pos_tag)
+                    lemma = LEMMATIZER.lemmatize(token, pos=wordnet_pos)
+                    lemmatized_tokens.append(lemma)
+            
+            return lemmatized_tokens
+            
+        except Exception:
+            # Fallback to simple lemmatization without POS
+            try:
+                lemmatized_tokens = []
+                for token in filtered_tokens:
+                    if token.isdigit() or any(char.isdigit() for char in token):
+                        lemmatized_tokens.append(token)
+                    else:
+                        lemma = LEMMATIZER.lemmatize(token)
+                        lemmatized_tokens.append(lemma)
+                return lemmatized_tokens
+            except Exception:
+                # Final fallback to original tokens
+                return filtered_tokens
     
     def _get_or_create_chunk_idx(self, chunk_id: str) -> int:
         """Map chunk_id to integer index for memory efficiency"""
@@ -55,7 +143,7 @@ class BM25:
         return chunk_idx
     
     def add_chunk(self, chunk_id: str, text: str, auto_flush=True):
-        """Add chunk using optimized Counter approach"""
+        """Add chunk using optimized Counter approach with enhanced tokenization"""
         if not chunk_id or not isinstance(text, str):
             raise ValueError("Invalid chunk_id or text")
         
@@ -178,8 +266,11 @@ class BM25:
             self.avg_chunk_length = 0.0
     
     def search(self, query: str, top_k: int = 50) -> List[Tuple[str, float]]:
-        """BM25 search with early termination thanks to pre-sorted postings"""
-        query_tokens = self._tokenize(query)
+        """
+        BM25 search with enhanced query processing.
+        Query text is automatically processed with the same tokenization as indexed content.
+        """
+        query_tokens = self._tokenize(query)  # Same processing as indexing!
         if not query_tokens:
             return []
         
@@ -219,15 +310,37 @@ class BM25:
             return 0.0
         return math.log((self.chunk_count - n_t + 0.5) / (n_t + 0.5) + 1)
     
+    def get_preprocessing_info(self) -> Dict:
+        """Information about text preprocessing capabilities"""
+        return {
+            'lemmatization_available': LEMMATIZATION_AVAILABLE,
+            'features': [
+                'Strips punctuation while preserving alphanumeric',
+                'Converts to lowercase',
+                'Lemmatizes words when NLTK available',
+                'Preserves part numbers and identifiers',
+                'POS-aware lemmatization for better accuracy'
+            ],
+            'preserved_patterns': [
+                'Part numbers (P123, SN456)',
+                'Serial numbers with mixed alphanumeric',
+                'Model numbers and codes',
+                'Any alphanumeric identifier'
+            ]
+        }
+    
     def get_stats(self) -> Dict:
         """System statistics"""
         total_postings = sum(len(postings) for postings in self.inverted_index.values())
         
-        return {
+        stats = {
             'chunks': self.chunk_count,
             'vocabulary_size': len(self.vocab),
             'total_postings': total_postings,
             'avg_postings_per_term': total_postings / len(self.inverted_index) if self.inverted_index else 0,
             'avg_chunk_length': self.avg_chunk_length,
-            'memory_efficiency': 'optimized_integer_indices'
+            'memory_efficiency': 'optimized_integer_indices',
+            'text_preprocessing': 'enhanced_with_lemmatization' if LEMMATIZATION_AVAILABLE else 'basic_normalization'
         }
+        
+        return stats

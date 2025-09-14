@@ -5,6 +5,7 @@ A fast, memory-efficient hybrid search system combining BM25 and vector search w
 ## Features
 
 - **BM25**: Memory-efficient with integer indices and pre-sorted postings
+  - lemmatizes, lowercase, no punctuation (replaced with space)
 - **Vector Search**: Semantic similarity using ChromaDB and sentence transformers  
 - **Hybrid Fusion**: Industry-standard Reciprocal Rank Fusion (RRF)
 - **Dual Processing Modes**: Sequential or unified batch processing

@@ -241,9 +241,12 @@ class HybridRetriever:
             'batch_size': batch_size,
         }
     
-    def search_bm25(self, query: str, top_k: int = 50) -> List[Tuple[str, float]]:
-        """BM25-only search"""
-        return self.bm25.search(query, top_k=top_k)
+    def search_bm25(self, query: str, top_k: int = 50, solr_norm: bool = False) -> List[Tuple[str, float]]:
+        """BM25 search with optional Solr-style normalization"""
+        if solr_norm:
+            return self.bm25.search_bm25_solr_style(query, top_k)
+        else:
+            return self.bm25.search(query, top_k)
     
     def search_vector(self, query: str, top_k: int = 50) -> List[Tuple[str, float]]:
         """Vector-only search"""

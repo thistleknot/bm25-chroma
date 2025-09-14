@@ -266,11 +266,8 @@ class BM25:
             self.avg_chunk_length = 0.0
     
     def search(self, query: str, top_k: int = 50) -> List[Tuple[str, float]]:
-        """
-        BM25 search with enhanced query processing.
-        Query text is automatically processed with the same tokenization as indexed content.
-        """
-        query_tokens = self._tokenize(query)  # Same processing as indexing!
+        """BM25 search with length normalization"""
+        query_tokens = self._tokenize(query)
         if not query_tokens:
             return []
         
@@ -281,24 +278,26 @@ class BM25:
                 continue
             
             idf = self._compute_idf(term)
-            postings = self.inverted_index[term]  # Already sorted by frequency!
+            postings = self.inverted_index[term]
             
-            # Early termination for common terms
-            max_postings = min(len(postings), 1000)
-            
-            for freq, chunk_idx in postings[:max_postings]:
+            for freq, chunk_idx in postings[:1000]:
                 if chunk_idx >= len(self.chunk_lengths) or self.chunk_lengths[chunk_idx] == 0:
                     continue
                 
                 chunk_len = self.chunk_lengths[chunk_idx]
+                
+                # Standard BM25 calculation
                 numerator = freq * (self.k1 + 1)
                 denominator = freq + self.k1 * (1 - self.b + self.b * chunk_len / self.avg_chunk_length)
-                term_score = idf * (numerator / denominator)
+                bm25_score = idf * (numerator / denominator)
+                
+                # Apply Solr-style norm factor
+                norm_factor = 1.0 / math.sqrt(chunk_len)
+                final_score = bm25_score * norm_factor
                 
                 chunk_id = self.chunk_id_map[chunk_idx]
-                chunk_scores[chunk_id] += term_score
+                chunk_scores[chunk_id] += final_score
         
-        # Sort results
         results = [(chunk_id, score) for chunk_id, score in chunk_scores.items()]
         results.sort(key=lambda x: x[1], reverse=True)
         return results[:top_k]

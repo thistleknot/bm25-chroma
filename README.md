@@ -43,7 +43,7 @@ retriever.add_documents_batch(
 )
 
 # Search
-results = retriever.hybrid_search("machine learning", top_k=5)
+results = retriever.hybrid_search("machine learning", top_k=5, bm25_ratio=0.5)
 for doc_id, score, metadata in results:
     print(f"{doc_id[:16]}...: {score:.3f} - {metadata['text'][:100]}...")
 

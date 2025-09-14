@@ -5,12 +5,17 @@ A fast, memory-efficient hybrid search system combining BM25 and vector search w
 ## Features
 
 - **BM25**: Memory-efficient with integer indices and pre-sorted postings
-  - lemmatizes, lowercase, no punctuation (replaced with space)
+  - lemmatizes, lowercase, no punctuation (replaced with space), len norm
 - **Vector Search**: Semantic similarity using ChromaDB and sentence transformers  
 - **Hybrid Fusion**: Industry-standard Reciprocal Rank Fusion (RRF)
 - **Dual Processing Modes**: Sequential or unified batch processing
 - **State Persistence**: Automatic save/load of BM25 index
 - **Document Management**: Add, remove, and update documents (chunks) with inverted index consistency
+
+## Data Structure Notes
+- **Storage**: Inverted index format `word -> [(frequency, doc_id), ...]`
+- **BM25 Scoring**: Accesses document term frequencies by inverting the lookup (query term → posting list → document frequencies)
+- **Avoids**: Storing redundant `document -> [(freq, word), ...]` mappings
 
 ## Quickstart
 
@@ -38,7 +43,7 @@ doc_ids = [hashlib.sha256(doc.encode()).hexdigest() for doc in documents]
 # Add documents
 retriever.add_documents_batch(
     documents,
-    doc_ids=doc_ids,  # Optional: auto-generated if not provided
+    doc_ids=doc_ids,  # Optional: auto-generated--using chroma's UUID--if not provided
     mode="unified",   # or "sequential"
     show_progress=True
 )

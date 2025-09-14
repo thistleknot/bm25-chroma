@@ -351,3 +351,24 @@ class HybridRetriever:
         
         # Save state
         self._save_state()
+
+    def reset_collection(self):
+        """Reset both BM25 and ChromaDB to clean state"""
+        # Reset BM25
+        self.bm25 = BM25()
+        self.chunk_cache = {}
+        
+        # Delete ChromaDB collection
+        try:
+            self.chroma_client.delete_collection(self.chroma_collection.name)
+            # Recreate collection
+            self.chroma_collection = self.chroma_client.create_collection(
+                name=self.chroma_collection.name,
+                embedding_function=self.chroma_collection._embedding_function
+            )
+        except:
+            pass
+        
+        # Save clean state
+        self._save_state()
+        print("Collection reset - starting with clean state")

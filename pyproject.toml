@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bm25-chroma"
-version = "0.5.1"
+version = "0.5.2"
 description = "A fast, memory-efficient hybrid search system combining BM25 and vector search"
 readme = "README.md"
 requires-python = ">=3.8"

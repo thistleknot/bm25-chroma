@@ -46,7 +46,7 @@ def main():
     # Test search before deletion
     query = "machine learning data analysis"
     print(f"\nSearching for: '{query}' (before deletion)")
-    results = retriever.hybrid_search(query, top_k=3)
+    results = retriever.hybrid_search(query, top_k=3, bm25_ratio=0.5)
     
     print("Results before deletion:")
     for i, (doc_id, score, metadata) in enumerate(results, 1):

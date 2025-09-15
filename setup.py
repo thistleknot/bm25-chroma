@@ -8,7 +8,7 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 
 setup(
     name="bm25-chroma",
-    version="0.5.3",
+    version="0.6.0",
     author="Joshua Laferriere",
     author_email="laferrierejc@gmail.com",
     description="A fast, memory-efficient hybrid search system combining BM25 and vector search",

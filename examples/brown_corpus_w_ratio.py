@@ -130,19 +130,32 @@ queries = [
     "Deep learning uses neural networks for complex tasks."
 ]
 
-# Search
-results = retriever.hybrid_search(queries[0], top_k=5)
-for doc_id, score, metadata in results:
-    print(f"{doc_id[:16]}...: {score:.3f} - {metadata['text'][:100]}...")
+def display_query_results(chroma_results, query_desc):
+    """Helper function to display ChromaDB query results"""
+    print(f"\n{query_desc}")
+    if chroma_results.get('documents') and chroma_results['documents'][0]:
+        for doc, meta, dist in zip(
+            chroma_results['documents'][0],
+            chroma_results['metadatas'][0],
+            chroma_results['distances'][0]
+        ):
+            doc_id = meta.get('document_id', 'unknown')
+            score = 1.0 - dist  # Convert distance to score
+            print(f"{doc_id[:16]}...: {score:.3f} - {doc[:100]}...")
+    else:
+        print("No results found")
+
+# Search using ChromaDB interface
+chroma_results = retriever.query(query_texts=[queries[0]], n_results=5, include=['documents', 'metadatas', 'distances'])
+display_query_results(chroma_results, f"Search for '{queries[0]}':")
 
 # Document management
 retriever.remove_document(DOC_IDS[n-1])  # Remove single document (last one)
 retriever.remove_documents_batch(DOC_IDS[n-3:n-1])  # Batch removal (2 docs)
 
 # Search after removal
-results = retriever.hybrid_search(queries[1], top_k=5)
-for doc_id, score, metadata in results:
-    print(f"{doc_id[:16]}...: {score:.3f} - {metadata['text'][:100]}...")
+chroma_results = retriever.query(query_texts=[queries[1]], n_results=5, include=['documents', 'metadatas', 'distances'])
+display_query_results(chroma_results, f"Search after removal for '{queries[1]}':")
 
 # Add new documents
 new_document_content = [
@@ -153,9 +166,8 @@ new_doc_ids = [hashlib.sha256(doc.encode()).hexdigest() for doc in new_document_
 add_new_documents_only(retriever, new_document_content, new_doc_ids, show_progress=False)
 
 # Search after adding new docs
-results = retriever.hybrid_search(queries[2], top_k=5)
-for doc_id, score, metadata in results:
-    print(f"{doc_id[:16]}...: {score:.3f} - {metadata['text'][:100]}...")
+chroma_results = retriever.query(query_texts=[queries[2]], n_results=5, include=['documents', 'metadatas', 'distances'])
+display_query_results(chroma_results, f"Search after adding new docs for '{queries[2]}':")
 
 # Remove the new documents
 retriever.remove_documents_batch(new_doc_ids)
@@ -163,15 +175,32 @@ retriever.remove_documents_batch(new_doc_ids)
 # Add remaining documents (check for duplicates)
 add_new_documents_only(retriever, documents[n:], DOC_IDS[n:])
 
-# Final search
-results = retriever.hybrid_search(queries[3], top_k=5, bm25_ratio=0.75)
-for doc_id, score, metadata in results:
-    print(f"{doc_id[:16]}...: {score:.3f} - {metadata['text'][:100]}...")
+# Final searches with different BM25 ratios
+print(f"\n=== Testing Different BM25 Ratios for '{queries[3]}' ===")
 
-results = retriever.hybrid_search(queries[3], top_k=5, bm25_ratio=0.25)
-for doc_id, score, metadata in results:
-    print(f"{doc_id[:16]}...: {score:.3f} - {metadata['text'][:100]}...")
+# High BM25 ratio (favor lexical matching)
+chroma_results = retriever.query(
+    query_texts=[queries[3]], 
+    n_results=5, 
+    include=['documents', 'metadatas', 'distances'],
+    bm25_ratio=0.75
+)
+display_query_results(chroma_results, "BM25 ratio 0.75 (favor lexical):")
 
-results = retriever.hybrid_search(queries[3], top_k=5, bm25_ratio=0.50)
-for doc_id, score, metadata in results:
-    print(f"{doc_id[:16]}...: {score:.3f} - {metadata['text'][:100]}...")
+# Low BM25 ratio (favor semantic matching)
+chroma_results = retriever.query(
+    query_texts=[queries[3]], 
+    n_results=5, 
+    include=['documents', 'metadatas', 'distances'],
+    bm25_ratio=0.25
+)
+display_query_results(chroma_results, "BM25 ratio 0.25 (favor semantic):")
+
+# Balanced ratio
+chroma_results = retriever.query(
+    query_texts=[queries[3]], 
+    n_results=5, 
+    include=['documents', 'metadatas', 'distances'],
+    bm25_ratio=0.50
+)
+display_query_results(chroma_results, "BM25 ratio 0.50 (balanced):")

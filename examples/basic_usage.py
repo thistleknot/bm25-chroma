@@ -43,15 +43,28 @@ def main():
     for key, value in initial_stats.items():
         print(f"  {key}: {value}")
     
-    # Test search before deletion
+    # Test search before deletion using ChromaDB interface
     query = "machine learning data analysis"
     print(f"\nSearching for: '{query}' (before deletion)")
-    results = retriever.hybrid_search(query, top_k=3, bm25_ratio=0.5)
+    chroma_results = retriever.query(
+        query_texts=[query], 
+        n_results=3, 
+        include=['documents', 'metadatas', 'distances']
+    )
     
     print("Results before deletion:")
-    for i, (doc_id, score, metadata) in enumerate(results, 1):
-        text = metadata['text'][:60]
-        print(f"{i}. {doc_id}: {score:.3f} - {text}...")
+    if chroma_results.get('documents') and chroma_results['documents'][0]:
+        for i, (doc, meta, dist) in enumerate(zip(
+            chroma_results['documents'][0],
+            chroma_results['metadatas'][0], 
+            chroma_results['distances'][0]
+        ), 1):
+            doc_id = meta.get('document_id', f'doc_{i}')
+            score = 1.0 - dist  # Convert distance back to score
+            text = doc[:60]
+            print(f"{i}. {doc_id}: {score:.3f} - {text}...")
+    else:
+        print("No results found")
     
     # Delete a document
     print(f"\nDeleting document: 'cv_doc'")
@@ -74,14 +87,28 @@ def main():
     final_stats = retriever.get_system_stats()
     print(f"Documents after addition: {final_stats['chunks']}")
     
-    # Test search after changes
+    # Test search after changes using ChromaDB interface
     print(f"\nSearching for: 'quantum computation' (after changes)")
-    quantum_results = retriever.hybrid_search("quantum computation", top_k=3)
+    quantum_chroma_results = retriever.query(
+        query_texts=["quantum computation"], 
+        n_results=3,
+        include=['documents', 'metadatas', 'distances'],
+        bm25_ratio=0.5  # Optional: specify ratio per query
+    )
     
     print("Results after document management:")
-    for i, (doc_id, score, metadata) in enumerate(quantum_results, 1):
-        text = metadata['text'][:60]
-        print(f"{i}. {doc_id}: {score:.3f} - {text}...")
+    if quantum_chroma_results.get('documents') and quantum_chroma_results['documents'][0]:
+        for i, (doc, meta, dist) in enumerate(zip(
+            quantum_chroma_results['documents'][0],
+            quantum_chroma_results['metadatas'][0],
+            quantum_chroma_results['distances'][0]
+        ), 1):
+            doc_id = meta.get('document_id', f'doc_{i}')
+            score = 1.0 - dist
+            text = doc[:60]
+            print(f"{i}. {doc_id}: {score:.3f} - {text}...")
+    else:
+        print("No results found")
     
     # Batch deletion example
     print(f"\nBatch deleting: ['nlp_doc', 'rl_doc']")

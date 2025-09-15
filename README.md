@@ -8,6 +8,7 @@ A fast, memory-efficient hybrid search system combining BM25 and vector search w
   - lemmatizes, lowercase, no punctuation (replaced with space), len norm
 - **Vector Search**: Semantic similarity using ChromaDB and sentence transformers  
 - **Hybrid Fusion**: Industry-standard Reciprocal Rank Fusion (RRF)
+- **ChromaDB Drop-in Replacement**: Compatible interface with hybrid search capabilities
 - **Dual Processing Modes**: Sequential or unified batch processing
 - **State Persistence**: Automatic save/load of BM25 index
 - **Document Management**: Add, remove, and update documents (chunks) with inverted index consistency
@@ -48,19 +49,22 @@ retriever.add_documents_batch(
     show_progress=True
 )
 
-# Search
-results = retriever.hybrid_search("machine learning", top_k=5, bm25_ratio=0.5)
-for doc_id, score, metadata in results:
+# Search with ChromaDB-compatible interface
+results = retriever.query(
+    query_texts=["machine learning"],
+    n_results=5,
+    bm25_ratio=0.5,  # 0.0 = vector only, 1.0 = BM25 only, 0.5 = balanced
+    include=['documents', 'metadatas', 'distances']
+)
+
+# Process results
+for doc, meta, dist in zip(results['documents'][0], results['metadatas'][0], results['distances'][0]):
+    print(f"Score: {1-dist:.3f} - {doc[:100]}...")
+
+# Legacy interface also available
+legacy_results = retriever.hybrid_search("machine learning", top_k=5, bm25_ratio=0.5)
+for doc_id, score, metadata in legacy_results:
     print(f"{doc_id[:16]}...: {score:.3f} - {metadata['text'][:100]}...")
-
-# Document management
-retriever.remove_document(doc_ids[0])  # Remove single document
-retriever.remove_documents_batch(doc_ids[1:3])  # Batch removal
-
-# Add new documents
-new_docs = ["Quantum computing leverages quantum mechanics."]
-new_doc_ids = [hashlib.sha256(doc.encode()).hexdigest() for doc in new_docs]
-retriever.add_documents_batch(new_docs, doc_ids=new_doc_ids)
 ```
 
 ### Why use hashlib for document IDs?
@@ -69,6 +73,34 @@ retriever.add_documents_batch(new_docs, doc_ids=new_doc_ids)
 - **Unique**: SHA256 hash collisions are extremely rare
 - **Content-based**: ID reflects the actual document content
 - **Database-safe**: Perfect for ensuring uniqueness across systems
+
+## ChromaDB Interface Compatibility
+
+HybridRetriever provides a drop-in replacement for ChromaDB collections with hybrid BM25+vector search:
+
+```python
+# ChromaDB-compatible interface
+results = retriever.query(
+    query_texts=["machine learning algorithms"],
+    n_results=5,
+    bm25_ratio=0.5,  # 0.0 = vector only, 1.0 = BM25 only, 0.5 = balanced
+    include=['documents', 'metadatas', 'distances']
+)
+
+# Returns ChromaDB format
+{
+    'documents': [['Machine learning helps analyze...', '...']],
+    'metadatas': [[{'document_id': 'abc123...'}, {...}]],
+    'distances': [[0.234, 0.456, ...]],
+    'embeddings': [[...], [...]]  # if requested in include
+}
+
+# Single query string (automatically converted to list)
+results = retriever.query("deep learning", n_results=3)
+
+# Use as drop-in ChromaDB replacement in existing code
+# Just replace: collection.query() with: retriever.query()
+```
 
 ## Installation
 
@@ -134,22 +166,52 @@ stats = retriever.get_system_stats()
 print(f"Documents remaining: {stats['chunks']}")
 ```
 
+## System Management
+
+### Reset Collection
+```python
+# Clear all documents and start fresh
+retriever.reset_collection()
+
+# Verify clean state
+stats = retriever.get_system_stats()
+print(f"Documents after reset: {stats['chunks']}")  # Should be 0
+```
+
+### State Persistence
+```python
+# BM25 state automatically saved to disk
+# Reload existing index on initialization
+retriever = HybridRetriever(
+    chroma_path="./my_db",
+    collection_name="my_docs",
+    bm25_state_path="./my_bm25_index.pkl"  # Auto-loads if exists
+)
+```
+
 ### Search Methods
 
 ```python
+# ChromaDB-compatible interface (recommended)
+results = retriever.query(
+    query_texts=["machine learning"],
+    n_results=10,
+    bm25_ratio=0.5,  # Hybrid ratio: 0.0=vector only, 1.0=BM25 only
+    include=['documents', 'metadatas', 'distances']
+)
+
+# Legacy hybrid search interface
+hybrid_results = retriever.hybrid_search(
+    "deep learning neural networks",
+    top_k=10,
+    bm25_ratio=0.5
+)
+
 # BM25 only (keyword-based)
 bm25_results = retriever.search_bm25("machine learning", top_k=10)
 
 # Vector only (semantic similarity)
 vector_results = retriever.search_vector("artificial intelligence", top_k=10)
-
-# Hybrid search with RRF fusion (recommended)
-hybrid_results = retriever.hybrid_search(
-    "deep learning neural networks",
-    top_k=10,
-    use_rrf=True,
-    rrf_k=60
-)
 ```
 
 ## Testing
@@ -166,15 +228,19 @@ python tests/test_examples.py
 ```
 
 **Test Coverage:**
+- ChromaDB interface compatibility
 - Inverted index consistency validation
 - Document addition/removal workflows  
 - Cross-document term tracking
 - Posting list ordering verification
 - Vocabulary cleanup on document removal
+- Reset collection functionality
+- Critical method existence validation
 
 ## Examples
 
 - `examples/basic_usage.py` - Document management workflow with custom documents
+- `examples/brown_corpus_w_ratio.py` - Brown corpus analysis with ratio testing
 
 ## Processing Modes
 
@@ -213,22 +279,25 @@ The system is designed for efficiency through incremental operations:
 ### Main Classes
 
 - `BM25`: Fast BM25 implementation with inverted index
-- `HybridRetriever`: Main hybrid search interface
+- `HybridRetriever`: Main hybrid search interface with ChromaDB compatibility
 
 ### Key Methods
+
+**Search Methods:**
+- `query()`: ChromaDB-compatible hybrid search interface
+- `hybrid_search()`: Legacy hybrid search with RRF
+- `search_bm25()`: BM25-only search
+- `search_vector()`: Vector-only search  
 
 **Document Management:**
 - `add_documents_batch()`: Add documents in batches
 - `remove_document()`: Remove single document  
 - `remove_documents_batch()`: Remove multiple documents
 
-**Search Methods:**
-- `search_bm25()`: BM25-only search
-- `search_vector()`: Vector-only search  
-- `hybrid_search()`: Combined search with RRF
-
 **System Methods:**
+- `reset_collection()`: Clear all documents and restart fresh
 - `get_system_stats()`: Performance statistics and document counts
+- `_save_state()` / `_load_state()`: Automatic BM25 persistence
 
 ## License
 

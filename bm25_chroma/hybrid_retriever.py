@@ -375,3 +375,132 @@ class HybridRetriever:
         # Save clean state
         self._save_state()
         print("Collection reset - starting with clean state")
+
+    def query(self, query_texts, n_results, include=None, **kwargs):
+        """
+        ChromaDB-compatible query method - performs hybrid BM25+vector search
+        """
+        if not isinstance(query_texts, list):
+            query_texts = [query_texts]
+        
+        include = include or ['documents', 'metadatas', 'distances']
+        
+        all_documents = []
+        all_metadatas = []
+        all_distances = []
+        all_embeddings = []
+        all_ids = []
+        
+        for query in query_texts:
+            # HYBRID SEARCH: Both BM25 and vector
+            bm25_results = self.search_bm25(query, top_k=n_results*2)
+            
+            vector_results = self.chroma_collection.query(
+                query_texts=[query],
+                n_results=n_results*2,
+                include=['documents', 'metadatas', 'distances', 'embeddings']
+            )
+            
+            # RRF fusion of both results
+            fused_results = self._query_rrf_fusion(bm25_results, vector_results, n_results)
+            
+            # Format as ChromaDB structure
+            query_docs, query_metas, query_dists, query_embeds, query_ids = self._format_query_results(
+                fused_results, vector_results, include
+            )
+            
+            all_documents.append(query_docs)
+            all_metadatas.append(query_metas)
+            all_distances.append(query_dists)
+            all_embeddings.append(query_embeds)
+            all_ids.append(query_ids)
+        
+        result = {'ids': all_ids}
+        if 'documents' in include:
+            result['documents'] = all_documents
+        if 'metadatas' in include:
+            result['metadatas'] = all_metadatas
+        if 'distances' in include:
+            result['distances'] = all_distances
+        if 'embeddings' in include:
+            result['embeddings'] = all_embeddings
+            
+        return result
+
+    def _query_rrf_fusion(self, bm25_results, vector_results, n_results, ratio=0.5, k=60):
+        """RRF fusion with flexible metadata handling"""
+        if not bm25_results and not vector_results['documents'][0]:
+            return []
+        
+        # Convert vector results to same format as BM25
+        vector_formatted = []
+        if vector_results['documents'] and vector_results['documents'][0]:
+            for meta in vector_results['metadatas'][0]:
+                # Handle different metadata formats
+                if 'filename' in meta and 'chunk_idx' in meta:
+                    # RAG pipeline format
+                    doc_id = f"{meta['filename']}_{meta['chunk_idx']}"
+                elif 'document_id' in meta:
+                    # HybridRetriever format
+                    doc_id = meta['document_id']
+                else:
+                    # Fallback - use any available ID
+                    doc_id = meta.get('id', 'unknown')
+                
+                vector_formatted.append((doc_id, 1.0))  # Score doesn't matter for RRF
+        
+        # Use existing RRF function
+        if bm25_results and vector_formatted:
+            return reciprocal_rank_fusion([bm25_results, vector_formatted], 
+                                        bm25_ratio=ratio, k=k, top_k=n_results)
+        elif bm25_results:
+            return bm25_results[:n_results]
+        elif vector_formatted:
+            return vector_formatted[:n_results]
+        else:
+            return []
+
+    def _format_query_results(self, fused_results, vector_results, include):
+        """Format fused results back to ChromaDB structure with flexible metadata"""
+        documents = []
+        metadatas = []
+        distances = []
+        embeddings = []
+        ids = []
+        
+        # Create lookup from original vector results
+        vector_lookup = {}
+        if vector_results['documents'] and vector_results['documents'][0]:
+            for i, meta in enumerate(vector_results['metadatas'][0]):
+                # Handle different metadata formats
+                if 'filename' in meta and 'chunk_idx' in meta:
+                    doc_id = f"{meta['filename']}_{meta['chunk_idx']}"
+                elif 'document_id' in meta:
+                    doc_id = meta['document_id']
+                else:
+                    doc_id = meta.get('id', f'doc_{i}')
+                
+                vector_lookup[doc_id] = {
+                    'document': vector_results['documents'][0][i],
+                    'metadata': meta,
+                    'distance': vector_results['distances'][0][i],
+                    'embedding': vector_results.get('embeddings', [[]])[0][i] if vector_results.get('embeddings') else None
+                }
+        
+        for doc_id, score in fused_results:
+            if doc_id in vector_lookup:
+                lookup = vector_lookup[doc_id]
+                documents.append(lookup['document'])
+                metadatas.append(lookup['metadata'])
+                distances.append(1.0 - score)  # Convert score back to distance
+                embeddings.append(lookup['embedding'])
+                ids.append(doc_id)
+            elif doc_id in self.chunk_cache:
+                # Fallback for BM25-only results
+                documents.append(self.chunk_cache[doc_id])
+                metadatas.append({'document_id': doc_id})  # Minimal metadata
+                distances.append(1.0 - score)
+                embeddings.append(None)
+                ids.append(doc_id)
+        
+        return documents, metadatas, distances, embeddings, ids

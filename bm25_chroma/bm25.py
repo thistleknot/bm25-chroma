@@ -343,3 +343,36 @@ class BM25:
         }
         
         return stats
+        
+    def reset_collection(self):
+        """Reset both BM25 and ChromaDB to clean state"""
+        # Reset BM25
+        self.bm25 = BM25()
+        self.chunk_cache = {}
+        
+        # Delete ChromaDB collection
+        try:
+            collection_name = self.chroma_collection.name
+            embedding_function = self.chroma_collection._embedding_function
+            
+            self.chroma_client.delete_collection(collection_name)
+            
+            # Recreate collection
+            self.chroma_collection = self.chroma_client.create_collection(
+                name=collection_name,
+                embedding_function=embedding_function
+            )
+            print("Collection reset - starting with clean state")
+        except Exception as e:
+            print(f"Error resetting collection: {e}")
+            # Try to create fresh collection anyway
+            try:
+                self.chroma_collection = self.chroma_client.create_collection(
+                    name=self.chroma_collection.name,
+                    embedding_function=self.chroma_collection._embedding_function
+                )
+            except:
+                pass
+        
+        # Save clean state
+        self._save_state()

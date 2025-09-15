@@ -48,7 +48,7 @@ def test_bm25_basic():
         sys.path.remove(str(Path(__file__).parent.parent))
 
 def test_hybrid_retriever_basic():
-    """Test HybridRetriever basic functionality with hashlib IDs"""
+    """Test HybridRetriever basic functionality with ChromaDB interface"""
     sys.path.insert(0, str(Path(__file__).parent.parent))
     try:
         from bm25_chroma.hybrid_retriever import HybridRetriever
@@ -72,20 +72,26 @@ def test_hybrid_retriever_basic():
             assert stats['total_documents'] == 2
             assert stats['docs_per_second'] > 0
             
-            results = retriever.hybrid_search("learning", top_k=2, bm25_ratio=0.5)
-            assert len(results) == 2
+            # Test ChromaDB interface with different ratios
+            chroma_results = retriever.query(query_texts=["learning"], n_results=2, bm25_ratio=0.5)
+            assert chroma_results['documents']
+            assert len(chroma_results['documents'][0]) == 2
             
-            results = retriever.hybrid_search("learning", top_k=2, bm25_ratio=1)
-            assert len(results) == 2
+            chroma_results = retriever.query(query_texts=["learning"], n_results=2, bm25_ratio=1.0)
+            assert chroma_results['documents']
+            assert len(chroma_results['documents'][0]) == 2
 
-            results = retriever.hybrid_search("learning", top_k=2, bm25_ratio=0)
-            assert len(results) == 2
+            chroma_results = retriever.query(query_texts=["learning"], n_results=2, bm25_ratio=0.0)
+            assert chroma_results['documents']
+            assert len(chroma_results['documents'][0]) == 2
 
-            results = retriever.hybrid_search("learning", top_k=2, bm25_ratio=0.25)
-            assert len(results) == 2
+            chroma_results = retriever.query(query_texts=["learning"], n_results=2, bm25_ratio=0.25)
+            assert chroma_results['documents']
+            assert len(chroma_results['documents'][0]) == 2
 
-            results = retriever.hybrid_search("learning", top_k=2, bm25_ratio=0.75)
-            assert len(results) == 2
+            chroma_results = retriever.query(query_texts=["learning"], n_results=2, bm25_ratio=0.75)
+            assert chroma_results['documents']
+            assert len(chroma_results['documents'][0]) == 2
 
             # Verify IDs are consistent
             regenerated_ids = [hashlib.sha256(doc.encode()).hexdigest() for doc in docs]
@@ -249,7 +255,7 @@ def test_bm25_deletion():
         sys.path.remove(str(Path(__file__).parent.parent))
 
 def test_batch_operations_with_hashlib():
-    """Test batch operations using hashlib IDs"""
+    """Test batch operations using ChromaDB interface"""
     sys.path.insert(0, str(Path(__file__).parent.parent))
     try:
         from bm25_chroma.hybrid_retriever import HybridRetriever
@@ -285,9 +291,14 @@ def test_batch_operations_with_hashlib():
             final_stats = retriever.get_system_stats()
             assert final_stats['chunks'] == 2, f"Expected 2 docs after batch deletion, got {final_stats['chunks']}"
             
-            # Test search works with remaining docs
-            results = retriever.hybrid_search("reinforcement learning", top_k=2)
-            assert len(results) > 0, "Should find remaining documents"
+            # Test search works with remaining docs using ChromaDB interface
+            chroma_results = retriever.query(
+                query_texts=["reinforcement learning"], 
+                n_results=2,
+                include=['documents', 'metadatas']
+            )
+            assert chroma_results['documents'], "Should find remaining documents"
+            assert len(chroma_results['documents'][0]) > 0, "Should have search results"
             
             # Verify ID consistency for remaining docs
             remaining_docs = docs[3:]  # Last 2 docs
@@ -300,6 +311,244 @@ def test_batch_operations_with_hashlib():
     finally:
         sys.path.remove(str(Path(__file__).parent.parent))
 
+def test_chromadb_interface_compatibility():
+    """Test ChromaDB interface compatibility with various parameters"""
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    try:
+        from bm25_chroma.hybrid_retriever import HybridRetriever
+        import tempfile
+        import shutil
+        
+        temp_dir = tempfile.mkdtemp()
+        try:
+            retriever = HybridRetriever(
+                chroma_path=temp_dir,
+                collection_name="interface_test",
+                bm25_state_path=f"{temp_dir}/interface_bm25.pkl"
+            )
+            
+            docs = ["machine learning algorithms", "deep learning networks", "natural language processing"]
+            doc_ids = [hashlib.sha256(doc.encode()).hexdigest() for doc in docs]
+            
+            retriever.add_documents_batch(docs, doc_ids=doc_ids, show_progress=False)
+            
+            # Test various ChromaDB interface scenarios
+            
+            # Single query string (should be converted to list)
+            results = retriever.query("machine learning", n_results=2)
+            assert 'documents' in results
+            assert 'metadatas' in results
+            assert 'distances' in results
+            
+            # List of queries
+            results = retriever.query(["deep learning"], n_results=2)
+            assert len(results['documents']) == 1  # One query
+            assert len(results['documents'][0]) <= 2  # Up to 2 results
+            
+            # Different include parameters
+            results = retriever.query(["natural language"], n_results=1, include=['documents'])
+            assert 'documents' in results
+            assert 'metadatas' not in results
+            
+            results = retriever.query(["algorithms"], n_results=1, include=['documents', 'metadatas'])
+            assert 'documents' in results
+            assert 'metadatas' in results
+            assert 'distances' not in results
+            
+            # Test with ratio parameter
+            results = retriever.query(["learning"], n_results=2, bm25_ratio=0.8)
+            assert 'documents' in results
+            
+            print("ChromaDB interface compatibility tests passed")
+            
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    finally:
+        sys.path.remove(str(Path(__file__).parent.parent))
+
+
+
+def test_reset_collection_functionality():
+    """Test reset_collection method and ensure all critical features work"""
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    try:
+        from bm25_chroma.hybrid_retriever import HybridRetriever
+        import tempfile
+        import shutil
+        
+        temp_dir = tempfile.mkdtemp()
+        try:
+            retriever = HybridRetriever(
+                chroma_path=temp_dir,
+                collection_name="reset_test",
+                bm25_state_path=f"{temp_dir}/reset_bm25.pkl"
+            )
+            
+            # Add initial documents
+            initial_docs = ["machine learning algorithms", "deep learning networks"]
+            initial_ids = [hashlib.sha256(doc.encode()).hexdigest() for doc in initial_docs]
+            
+            retriever.add_documents_batch(initial_docs, doc_ids=initial_ids, show_progress=False)
+            
+            # Verify documents were added
+            initial_stats = retriever.get_system_stats()
+            assert initial_stats['chunks'] == 2, "Should have 2 initial documents"
+            
+            # Test search works
+            results = retriever.query(["machine learning"], n_results=1)
+            assert results['documents'], "Should find documents before reset"
+            assert len(results['documents'][0]) > 0, "Should have search results"
+            
+            # CRITICAL TEST: reset_collection method
+            retriever.reset_collection()
+            
+            # Verify reset worked
+            reset_stats = retriever.get_system_stats()
+            assert reset_stats['chunks'] == 0, "Should have 0 documents after reset"
+            
+            # Verify BM25 was reset
+            assert retriever.bm25.chunk_count == 0, "BM25 should be empty after reset"
+            assert len(retriever.bm25.vocab) == 0, "BM25 vocab should be empty after reset"
+            assert len(retriever.chunk_cache) == 0, "Chunk cache should be empty after reset"
+            
+            # Verify ChromaDB was reset
+            chroma_count = len(retriever.chroma_collection.get()["ids"])
+            assert chroma_count == 0, "ChromaDB should be empty after reset"
+            
+            # Test that we can add documents after reset
+            new_docs = ["natural language processing", "computer vision systems"]
+            new_ids = [hashlib.sha256(doc.encode()).hexdigest() for doc in new_docs]
+            
+            retriever.add_documents_batch(new_docs, doc_ids=new_ids, show_progress=False)
+            
+            # Verify new documents work
+            final_stats = retriever.get_system_stats()
+            assert final_stats['chunks'] == 2, "Should have 2 new documents after reset and re-add"
+            
+            # Test search works with new documents
+            results = retriever.query(["natural language"], n_results=1)
+            assert results['documents'], "Should find new documents after reset"
+            
+            print("reset_collection() functionality test passed")
+            
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    finally:
+        sys.path.remove(str(Path(__file__).parent.parent))
+
+def test_all_critical_methods_exist():
+    """Test that all critical methods exist and are callable"""
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    try:
+        from bm25_chroma.hybrid_retriever import HybridRetriever
+        import tempfile
+        import shutil
+        
+        temp_dir = tempfile.mkdtemp()
+        try:
+            retriever = HybridRetriever(
+                chroma_path=temp_dir,
+                collection_name="methods_test",
+                bm25_state_path=f"{temp_dir}/methods_bm25.pkl"
+            )
+            
+            # Test all critical methods exist
+            critical_methods = [
+                'add_documents_batch',
+                'remove_document', 
+                'remove_documents_batch',
+                'reset_collection',
+                'query',  # ChromaDB interface
+                'hybrid_search',  # Legacy interface
+                'search_bm25',
+                'search_vector',
+                'get_system_stats'
+            ]
+            
+            for method_name in critical_methods:
+                assert hasattr(retriever, method_name), f"Missing critical method: {method_name}"
+                method = getattr(retriever, method_name)
+                assert callable(method), f"Method {method_name} is not callable"
+            
+            # Test all critical attributes exist
+            critical_attributes = [
+                'chroma_client',
+                'chroma_collection', 
+                'bm25',
+                'chunk_cache'
+            ]
+            
+            for attr_name in critical_attributes:
+                assert hasattr(retriever, attr_name), f"Missing critical attribute: {attr_name}"
+            
+            print("All critical methods and attributes exist")
+            
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    finally:
+        sys.path.remove(str(Path(__file__).parent.parent))
+
+def test_brown_corpus_example_compatibility():
+    """Test that the brown corpus example pattern works"""
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    try:
+        from bm25_chroma.hybrid_retriever import HybridRetriever
+        import tempfile
+        import shutil
+        
+        temp_dir = tempfile.mkdtemp()
+        try:
+            # Simulate brown_corpus_w_ratio.py usage pattern
+            retriever = HybridRetriever(
+                chroma_path=temp_dir,
+                collection_name="brown_test"
+            )
+            
+            # This is the exact call from brown_corpus_w_ratio.py that was failing
+            retriever.reset_collection()
+            
+            # Add some test documents like brown corpus would
+            docs = ["Machine learning helps analyze data patterns.", "Natural language processing."]
+            doc_ids = [hashlib.sha256(doc.encode()).hexdigest() for doc in docs]
+            
+            # Test the add_new_documents_only pattern from brown corpus
+            existing_ids = set(retriever.chroma_collection.get()["ids"])
+            new_pairs = [(doc, doc_id) for doc, doc_id in zip(docs, doc_ids) 
+                         if doc_id not in existing_ids]
+            
+            assert len(new_pairs) == 2, "Should have 2 new documents to add"
+            
+            if new_pairs:
+                new_docs, new_ids = zip(*new_pairs)
+                retriever.add_documents_batch(list(new_docs), doc_ids=list(new_ids), show_progress=False)
+            
+            # Test the various ratio searches from brown corpus
+            ratios_to_test = [0.25, 0.50, 0.75]
+            
+            for ratio in ratios_to_test:
+                results = retriever.query(
+                    query_texts=["machine learning"],
+                    n_results=5,
+                    bm25_ratio=ratio,
+                    include=['documents', 'metadatas', 'distances']
+                )
+                assert 'documents' in results, f"Should return documents for ratio {ratio}"
+            
+            # Test document removal like brown corpus does
+            retriever.remove_document(doc_ids[0])
+            retriever.remove_documents_batch([doc_ids[1]])
+            
+            final_stats = retriever.get_system_stats()
+            assert final_stats['chunks'] == 0, "Should have no documents after removal"
+            
+            print("Brown corpus example compatibility test passed")
+            
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    finally:
+        sys.path.remove(str(Path(__file__).parent.parent))
+
+# Add these to your main test runner
 if __name__ == "__main__":
     test_basic_usage()
     test_bm25_basic()
@@ -307,4 +556,8 @@ if __name__ == "__main__":
     test_document_deletion_with_inverted_index_consistency()
     test_bm25_deletion()
     test_batch_operations_with_hashlib()
+    test_chromadb_interface_compatibility()
+    test_reset_collection_functionality()  # NEW
+    test_all_critical_methods_exist()      # NEW
+    test_brown_corpus_example_compatibility()  # NEW
     print("All tests passed!")
